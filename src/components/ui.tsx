@@ -185,6 +185,7 @@ export function Field({ label, hint, style, ...input }: TextInputProps & { label
       <Txt variant="label">{label}</Txt>
       <TextInput
         placeholderTextColor={c.textSecondary}
+        accessibilityLabel={label}
         {...input}
         style={[
           styles.input,
@@ -207,8 +208,9 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!selected }}
+      // Chips pick one option from a set: expose them as radios so screen readers announce the selection.
+      role="radio"
+      aria-checked={!!selected}
       style={({ pressed }) => [
         styles.chip,
         {

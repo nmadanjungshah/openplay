@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { notify } from '@/lib/share';
 import { pickImage, randomFileId, uploadImage } from '@/lib/storage';
 import { errorMessage, supabase } from '@/lib/supabase';
 import type { Group, PaymentMode } from '@/lib/types';
+import { goBackOr } from '@/lib/nav';
 
 export default function PaymentSettingsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -90,7 +91,7 @@ function PaymentSettingsForm({ group }: { group: Group }) {
       return;
     }
     notify('Payment settings saved');
-    router.back();
+    goBackOr({ pathname: '/group/[id]', params: { id: group.id } });
   }
 
   const qrBlock = (wallet: 'esewa' | 'khalti', label: string, path: string | null, clear: () => void) => (

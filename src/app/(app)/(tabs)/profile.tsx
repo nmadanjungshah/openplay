@@ -25,7 +25,9 @@ function ProfileForm({ profile }: { profile: Profile | null }) {
 
   const dirty =
     !!profile &&
-    (name.trim() !== profile.full_name || skill !== profile.skill_level || (dupr.trim() || null) !== profile.dupr_id);
+    (name.trim() !== profile.full_name ||
+      skill !== profile.skill_level ||
+      (dupr.trim().toUpperCase() || null) !== profile.dupr_id);
 
   async function save() {
     if (name.trim().length < 2) {
@@ -36,7 +38,7 @@ function ProfileForm({ profile }: { profile: Profile | null }) {
     setError(null);
     const { error } = await supabase
       .from('profiles')
-      .update({ full_name: name.trim(), skill_level: skill, dupr_id: dupr.trim() || null })
+      .update({ full_name: name.trim(), skill_level: skill, dupr_id: dupr.trim().toUpperCase() || null })
       .eq('id', session!.user.id);
     setSaving(false);
     if (error) {

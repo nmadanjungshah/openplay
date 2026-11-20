@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -8,6 +8,7 @@ import { useNow } from '@/hooks/use-now';
 import { useAuth } from '@/lib/auth';
 import { formatDay, formatNpr, formatTime, parseTime, SKILL_LEVELS, startOfDay } from '@/lib/format';
 import { errorMessage, supabase } from '@/lib/supabase';
+import { goBackOr } from '@/lib/nav';
 
 const DURATIONS = [60, 90, 120, 180];
 const REPEATS = [
@@ -95,7 +96,7 @@ export default function NewSession() {
     const { error } = await supabase.from('sessions').insert(rows);
     setBusy(false);
     if (error) return setError(errorMessage(error));
-    router.back();
+    goBackOr({ pathname: '/group/[id]', params: { id: groupId } });
   }
 
   const summary = start && end

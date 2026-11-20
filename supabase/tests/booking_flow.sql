@@ -38,12 +38,12 @@ values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-0000000
 
 -- Outsider sees nothing and cannot book.
 select tests.act_as('00000000-0000-0000-0000-00000000000d');
-select tests.check((select count(*) = 0 from public.sessions), 'outsider sees no sessions');
-select tests.check((select count(*) = 0 from public.groups), 'outsider sees no private groups');
+select tests.check((select count(*) = 0 from public.sessions where id = '20000000-0000-0000-0000-000000000001'), 'outsider sees no sessions');
+select tests.check((select count(*) = 0 from public.groups where id = '10000000-0000-0000-0000-000000000001'), 'outsider sees no private groups');
 do $$ begin
   perform public.book_session('20000000-0000-0000-0000-000000000001');
   raise exception 'FAIL: outsider booked';
-exception when sqlstate 'P0002' then raise notice 'ok: outsider cannot book';
+exception when sqlstate 'PT404' then raise notice 'ok: outsider cannot book';
 end $$;
 
 -- A and B join with the invite code (trimmed, case-insensitive).

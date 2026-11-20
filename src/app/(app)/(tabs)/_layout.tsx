@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/js-tabs';
+import { Platform } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 
@@ -11,7 +12,14 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: c.primary,
         tabBarInactiveTintColor: c.textSecondary,
-        tabBarStyle: { backgroundColor: c.surface, borderTopColor: c.border },
+        tabBarStyle: {
+          backgroundColor: c.surface,
+          borderTopColor: c.border,
+          // Web has no safe-area inset, and the default height clips the labels.
+          ...(Platform.OS === 'web' ? { height: 62 } : null),
+        },
+        // On web each tab item is fixed at the default height, which pushes the label out of view.
+        tabBarItemStyle: Platform.OS === 'web' ? { height: 60, paddingTop: 6, paddingBottom: 6 } : undefined,
       }}>
       <Tabs.Screen
         name="index"

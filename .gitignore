@@ -44,3 +44,7 @@ example
 
 # private credentials
 .creds.env
+
+# e2e output
+e2e-report/
+e2e-results/

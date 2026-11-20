@@ -29,6 +29,7 @@ import { downloadIcs, openGoogleCalendar, type CalendarEvent } from '@/lib/calen
 import { formatNpr, formatSlot, skillRange } from '@/lib/format';
 import { confirm, notify } from '@/lib/share';
 import { errorMessage, supabase } from '@/lib/supabase';
+import { goBackOr } from '@/lib/nav';
 import {
   METHOD_LABEL,
   type BookingStatus,
@@ -195,7 +196,7 @@ export default function SessionScreen() {
     const { error } = await supabase.from('sessions').delete().eq('id', s.id!);
     setBusy(false);
     if (error) setActionError(errorMessage(error));
-    else router.back();
+    else goBackOr({ pathname: '/group/[id]', params: { id: s.group_id! } });
   }
 
   let primary: ReactNode = null;
@@ -362,7 +363,7 @@ export default function SessionScreen() {
                 onPress={toggleSessionStatus}
                 disabled={busy}
               />
-              <Button title="Delete" variant="ghost" small onPress={deleteSession} disabled={busy} />
+              <Button title="Delete session" variant="danger" icon="trash-outline" small onPress={deleteSession} disabled={busy} />
             </Row>
           </Card>
         </Section>

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { appLink, confirm, notify, shareText } from '@/lib/share';
 import { errorMessage, supabase } from '@/lib/supabase';
 import type { Group, MemberRole, Profile, SessionOverview } from '@/lib/types';
+import { goBackOr } from '@/lib/nav';
 
 type Member = {
   user_id: string;
@@ -77,7 +78,7 @@ export default function GroupScreen() {
     if (!(await confirm('Leave group?', `You'll stop seeing ${group.name}'s sessions.`, 'Leave'))) return;
     const { error } = await supabase.from('group_members').delete().eq('group_id', id).eq('user_id', uid);
     if (error) notify('Could not leave', errorMessage(error));
-    else router.back();
+    else goBackOr('/groups');
   }
 
   if (q.loading) {
