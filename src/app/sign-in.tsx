@@ -29,7 +29,12 @@ export default function SignIn() {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email: cleanEmail,
-      options: { shouldCreateUser: true, data: name.trim() ? { full_name: name.trim() } : undefined },
+      options: {
+        shouldCreateUser: true,
+        data: name.trim() ? { full_name: name.trim() } : undefined,
+        // Web: bring the link back to this site so the session is picked up from the URL.
+        emailRedirectTo: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined,
+      },
     });
     setBusy(false);
     if (error) setError(errorMessage(error));
@@ -93,7 +98,8 @@ export default function SignIn() {
         ) : (
           <View style={{ gap: Spacing.three }}>
             <Txt>
-              We sent a 6-digit code to <Txt variant="bodyBold">{cleanEmail}</Txt>.
+              We emailed <Txt variant="bodyBold">{cleanEmail}</Txt>. Enter the 6-digit code, or open the sign-in link
+              in the email{Platform.OS === 'web' ? ' in this browser' : ''}.
             </Txt>
             <Field
               label="Code"

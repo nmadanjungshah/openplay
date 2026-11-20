@@ -19,7 +19,8 @@ export const supabase = createClient<Database>(url, key, {
     storage: typeof localStorage === 'undefined' ? undefined : localStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // Web: also accept the email sign-in link (session arrives in the URL). Native uses the 6-digit code.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
 
