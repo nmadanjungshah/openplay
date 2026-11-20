@@ -1,16 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 
-import { Button, ErrorBanner, Field, Screen, Txt } from '@/components/ui';
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Button, Card, ErrorBanner, Field, Hero, Row, Screen, Txt } from '@/components/ui';
+import { Brand, FontFamily, Radius, Spacing } from '@/constants/theme';
 import { errorMessage, supabase } from '@/lib/supabase';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignIn() {
-  const c = useTheme();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -57,19 +55,27 @@ export default function SignIn() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Screen>
-        <View style={{ gap: Spacing.two, marginTop: Spacing.five, alignItems: 'flex-start' }}>
-          <View style={{ backgroundColor: c.accent, borderRadius: Radius.lg, padding: Spacing.three }}>
-            <Ionicons name="tennisball" size={32} color={c.accentText} />
-          </View>
-          <Txt variant="title">OpenPlay</Txt>
-          <Txt tone="textSecondary">
-            Book open-play pickleball sessions, join the waitlist, and see who&apos;s playing.
-          </Txt>
-        </View>
-
+      <Screen
+        hero={
+          <Hero eyebrow="Pickleball · Open play" title="OpenPlay" subtitle="Book your spot, ride the waitlist, and see who's on court.">
+            <Row wrap gap={Spacing.two} style={{ marginTop: Spacing.two }}>
+              {[
+                ['flash', 'Instant booking'],
+                ['time', 'Auto waitlist'],
+                ['qr-code', 'eSewa · Khalti'],
+              ].map(([icon, label]) => (
+                <View key={label} style={styles.pill}>
+                  <Ionicons name={icon as 'flash'} size={14} color={Brand.volt} />
+                  <Text style={styles.pillText}>{label}</Text>
+                </View>
+              ))}
+            </Row>
+          </Hero>
+        }>
         {error ? <ErrorBanner message={error} /> : null}
 
+        <Card style={{ gap: Spacing.three }}>
+        <Txt variant="h2">{step === 'email' ? 'Sign in or join' : 'Check your email'}</Txt>
         {step === 'email' ? (
           <View style={{ gap: Spacing.three }}>
             <Field
@@ -128,7 +134,26 @@ export default function SignIn() {
             />
           </View>
         )}
+        </Card>
+        <Txt variant="small" tone="textSecondary" style={{ textAlign: 'center' }}>
+          No passwords. We email you a one-time code.
+        </Txt>
       </Screen>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  pillText: { fontFamily: FontFamily.bodySemi, fontSize: 13, color: '#FFFFFF' },
+});

@@ -1,22 +1,30 @@
+import {
+  BarlowCondensed_600SemiBold,
+  BarlowCondensed_700Bold,
+  BarlowCondensed_800ExtraBold,
+} from '@expo-google-fonts/barlow-condensed';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
-import { Colors } from '@/constants/theme';
+import { Colors, FontFamily } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/lib/auth';
 
 SplashScreen.preventAutoHideAsync();
 
-function RootNavigator() {
+function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
   const { session, loading } = useAuth();
+  const ready = fontsReady && !loading;
 
   useEffect(() => {
-    if (!loading) SplashScreen.hideAsync();
-  }, [loading]);
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
 
-  if (loading) return null;
+  if (!ready) return null;
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -31,6 +39,15 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    BarlowCondensed_600SemiBold,
+    BarlowCondensed_700Bold,
+    BarlowCondensed_800ExtraBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const c = Colors[scheme];
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -38,11 +55,16 @@ export default function RootLayout() {
     ...base,
     colors: {
       ...base.colors,
-      primary: c.primary,
+      primary: c.tint,
       background: c.background,
       card: c.surface,
       text: c.text,
       border: c.border,
+    },
+    fonts: {
+      ...base.fonts,
+      bold: { fontFamily: FontFamily.displayBold, fontWeight: '700' as const },
+      heavy: { fontFamily: FontFamily.display, fontWeight: '800' as const },
     },
   };
 
@@ -50,7 +72,8 @@ export default function RootLayout() {
     <ThemeProvider value={navTheme}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <AuthProvider>
-        <RootNavigator />
+        {/* Fall back to system fonts if they fail to load rather than blocking the app. */}
+        <RootNavigator fontsReady={fontsLoaded || !!fontError} />
       </AuthProvider>
     </ThemeProvider>
   );

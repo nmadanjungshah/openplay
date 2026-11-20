@@ -3,7 +3,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Badge, Button, Card, EmptyState, ErrorBanner, Field, Loading, Row, Screen, Section, Txt } from '@/components/ui';
+import { Avatar, Badge, Button, Card, EmptyState, ErrorBanner, Field, Hero, HeroStat, Loading, Row, Screen, Section, Txt } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { unwrap, useQuery } from '@/hooks/use-query';
 import { useAuth } from '@/lib/auth';
@@ -58,14 +59,28 @@ export default function GroupsScreen() {
   }
 
   return (
-    <Screen refreshing={q.refreshing} onRefresh={() => q.refetch()}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Txt variant="title">Groups</Txt>
-        <Button title="New group" icon="add" small onPress={() => router.push('/group/new')} />
-      </Row>
-
+    <Screen
+      refreshing={q.refreshing}
+      onRefresh={() => q.refetch()}
+      hero={
+        <Hero
+          eyebrow="Your crews"
+          title="Groups"
+          subtitle="Join with an invite code or start your own open-play group."
+          action={<Button title="New group" icon="add" variant="volt" small onPress={() => router.push('/group/new')} />}>
+          {q.data ? (
+            <Row wrap gap={Spacing.two} style={{ marginTop: Spacing.two }}>
+              <HeroStat value={String(q.data.memberships.length)} label="Joined" accent />
+              <HeroStat
+                value={String(q.data.memberships.filter((m) => m.role === 'organizer').length)}
+                label="Organizing"
+              />
+            </Row>
+          ) : null}
+        </Hero>
+      }>
       <Card>
-        <Txt variant="bodyBold">Have an invite code?</Txt>
+        <Txt variant="h2">Have an invite code?</Txt>
         <Row style={{ alignItems: 'flex-end' }}>
           <View style={{ flex: 1 }}>
             <Field
@@ -94,8 +109,9 @@ export default function GroupsScreen() {
           <Section title="Your groups">
             {q.data?.memberships.length ? (
               q.data.memberships.map(({ role, groups: g }) => (
-                <Card key={g!.id} onPress={() => router.push({ pathname: '/group/[id]', params: { id: g!.id } })}>
+                <Card key={g!.id} accent={role === 'organizer'} onPress={() => router.push({ pathname: '/group/[id]', params: { id: g!.id } })}>
                   <Row style={{ justifyContent: 'space-between' }}>
+                    <Avatar name={g!.name} size={44} />
                     <View style={{ flex: 1, gap: 2 }}>
                       <Txt variant="h2">{g!.name}</Txt>
                       {g!.city ? (

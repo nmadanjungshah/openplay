@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
-import { Badge, Card, IconText, Row, Txt } from '@/components/ui';
+import { Badge, CapacityBar, Card, DateBlock, IconText, Row, Txt } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { formatNpr, formatTime, relativeDay, skillRange } from '@/lib/format';
 import type { SessionOverview } from '@/lib/types';
 
@@ -19,26 +20,39 @@ export function SessionCard({ session: s, showGroup = true }: { session: Session
   const taken = (s.confirmed_count ?? 0) + (s.pending_count ?? 0);
   const spotsLeft = Math.max(0, capacity - taken);
   const skills = skillRange(s.skill_min, s.skill_max);
+  const mine = s.my_status === 'confirmed' || s.my_status === 'pending_payment';
+  const cancelled = s.status === 'cancelled';
 
   return (
-    <Card onPress={() => router.push({ pathname: '/session/[id]', params: { id: s.id! } })}>
-      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Txt variant="small" tone="primary" style={{ fontWeight: '700' }}>
-            {relativeDay(s.starts_at!)} · {formatTime(s.starts_at!)}–{formatTime(s.ends_at!)}
+    <Card
+      accent={mine && !cancelled}
+      style={cancelled ? { opacity: 0.6 } : undefined}
+      onPress={() => router.push({ pathname: '/session/[id]', params: { id: s.id! } })}>
+      <Row gap={Spacing.three} style={{ alignItems: 'stretch' }}>
+        <DateBlock date={new Date(s.starts_at!)} highlight={mine && !cancelled} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Txt variant="small" tone="tint" style={{ fontFamily: 'Inter_700Bold', flexShrink: 1 }}>
+              {relativeDay(s.starts_at!)} · {formatTime(s.starts_at!)}–{formatTime(s.ends_at!)}
+            </Txt>
+            {bookingBadge(s)}
+          </Row>
+          <Txt variant="h2" numberOfLines={1}>
+            {s.title}
           </Txt>
-          <Txt variant="h2">{s.title}</Txt>
           {showGroup ? (
-            <Txt variant="small" tone="textSecondary">
+            <Txt variant="small" tone="textSecondary" numberOfLines={1}>
               {s.group_name}
             </Txt>
           ) : null}
+          {s.location ? <IconText icon="location">{s.location}</IconText> : null}
         </View>
-        {bookingBadge(s)}
       </Row>
-      {s.location ? <IconText icon="location-outline">{s.location}</IconText> : null}
+
+      {!cancelled ? <CapacityBar value={taken} max={capacity} /> : null}
+
       <Row wrap gap={6}>
-        {s.status === 'cancelled' ? null : spotsLeft > 0 ? (
+        {cancelled ? null : spotsLeft > 0 ? (
           <Badge label={`${spotsLeft} of ${capacity} spots left`} tone={spotsLeft <= 2 ? 'warning' : 'neutral'} />
         ) : (
           <Badge label={`Full · ${s.waitlist_count ?? 0} waiting`} tone="danger" />

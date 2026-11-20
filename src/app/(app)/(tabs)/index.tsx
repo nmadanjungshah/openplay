@@ -1,12 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
 
 import { SessionCard } from '@/components/session-card';
-import { Button, Card, Chip, EmptyState, ErrorBanner, Loading, Row, Screen, Section, Txt } from '@/components/ui';
+import { Button, Card, Chip, EmptyState, ErrorBanner, Hero, HeroStat, Loading, Row, Screen, Section, Txt } from '@/components/ui';
+import { Spacing } from '@/constants/theme';
 import { unwrap, useQuery } from '@/hooks/use-query';
 import { useAuth } from '@/lib/auth';
-import { relativeDay } from '@/lib/format';
+import { formatTime, relativeDay } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { SessionOverview } from '@/lib/types';
 
@@ -41,17 +41,27 @@ export default function PlayScreen() {
   }
 
   const firstName = profile?.full_name?.split(' ')[0];
+  const all = q.data ?? [];
+  const booked = all.filter((s) => s.status === 'scheduled' && (s.my_status === 'confirmed' || s.my_status === 'pending_payment'));
+  const next = booked[0];
+  const open = all.filter((s) => s.status === 'scheduled').length;
+
+  const hero = (
+    <Hero eyebrow="OpenPlay · Pickleball" title={firstName ? `Hi, ${firstName}` : 'Open play'} subtitle="Upcoming sessions in your groups.">
+      <Row wrap gap={Spacing.two} style={{ marginTop: Spacing.two }}>
+        <HeroStat value={String(booked.length)} label="Booked" accent />
+        <HeroStat value={next ? relativeDay(next.starts_at!) : '—'} label={next ? formatTime(next.starts_at!) : 'Next game'} />
+        <HeroStat value={String(open)} label="Open" />
+      </Row>
+    </Hero>
+  );
 
   return (
-    <Screen refreshing={q.refreshing} onRefresh={() => q.refetch()}>
-      <View style={{ gap: 4 }}>
-        <Txt variant="title">{firstName ? `Hi, ${firstName}` : 'Open play'}</Txt>
-        <Txt tone="textSecondary">Upcoming sessions in your groups.</Txt>
-      </View>
+    <Screen refreshing={q.refreshing} onRefresh={() => q.refetch()} hero={hero}>
 
       {profile && !profile.full_name ? (
-        <Card>
-          <Txt variant="bodyBold">Finish your profile</Txt>
+        <Card accent>
+          <Txt variant="h2">Finish your profile</Txt>
           <Txt variant="small" tone="textSecondary">
             Add your name and skill level so organizers know who&apos;s coming.
           </Txt>

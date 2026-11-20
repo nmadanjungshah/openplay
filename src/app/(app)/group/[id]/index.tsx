@@ -2,7 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
 import { SessionCard } from '@/components/session-card';
-import { Avatar, Badge, Button, Card, EmptyState, ErrorBanner, Loading, Row, Screen, Section, Txt } from '@/components/ui';
+import { Avatar, Badge, Button, Card, EmptyState, ErrorBanner, Hero, HeroStat, Loading, Row, Screen, Section, Txt } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { unwrap, useQuery } from '@/hooks/use-query';
 import { useAuth } from '@/lib/auth';
@@ -99,19 +99,26 @@ export default function GroupScreen() {
   }
 
   return (
-    <Screen hasHeader refreshing={q.refreshing} onRefresh={() => q.refetch()}>
-      <Stack.Screen options={{ title: group.name }} />
-
-      <View style={{ gap: Spacing.one }}>
-        <Row wrap>
-          <Txt variant="title" style={{ flexShrink: 1 }}>
-            {group.name}
-          </Txt>
-          {group.is_public ? <Badge label="Public" /> : null}
-        </Row>
-        {group.city ? <Txt tone="textSecondary">{group.city}</Txt> : null}
-        {group.description ? <Txt>{group.description}</Txt> : null}
-      </View>
+    <Screen
+      hasHeader
+      refreshing={q.refreshing}
+      onRefresh={() => q.refetch()}
+      hero={
+        <Hero
+          underHeader
+          eyebrow={isOrganizer ? 'You organize this group' : 'Group'}
+          title={group.name}
+          subtitle={group.city || undefined}
+          action={group.is_public ? <Badge label="Public" tone="accent" /> : undefined}>
+          <Row wrap gap={Spacing.two} style={{ marginTop: Spacing.two }}>
+            <HeroStat value={String(q.data!.members.length)} label="Members" accent />
+            <HeroStat value={String(q.data!.sessions.length)} label="Upcoming" />
+            <HeroStat value={String(q.data!.members.filter((m) => m.role === 'organizer').length)} label="Organizers" />
+          </Row>
+        </Hero>
+      }>
+      <Stack.Screen options={{ title: '' }} />
+      {group.description ? <Txt>{group.description}</Txt> : null}
 
       {q.error ? <ErrorBanner message={q.error} onRetry={() => q.refetch()} /> : null}
 

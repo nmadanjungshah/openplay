@@ -1,6 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Platform, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { PaymentCard, type PayInfo } from '@/components/payment-card';
 import { PrivateImage } from '@/components/private-image';
@@ -9,19 +10,21 @@ import {
   Avatar,
   Badge,
   Button,
+  CapacityBar,
   Card,
   EmptyState,
   ErrorBanner,
   Field,
-  IconText,
+  Hero,
   Loading,
   Row,
   Screen,
   Section,
+  StatTile,
   Stepper,
   Txt,
 } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
+import { Brand, FontFamily, Spacing } from '@/constants/theme';
 import { useNow } from '@/hooks/use-now';
 import { unwrap, useQuery } from '@/hooks/use-query';
 import { useAuth } from '@/lib/auth';
@@ -233,41 +236,57 @@ export default function SessionScreen() {
   }
 
   return (
-    <Screen hasHeader refreshing={q.refreshing} onRefresh={() => q.refetch()} footer={primary}>
-      <Stack.Screen options={{ title: s.title ?? 'Session' }} />
+    <Screen
+      hasHeader
+      refreshing={q.refreshing}
+      onRefresh={() => q.refetch()}
+      footer={primary}
+      hero={
+        <Hero
+          underHeader
+          eyebrow={s.group_name ?? undefined}
+          title={s.title ?? 'Session'}
+          subtitle={formatSlot(s.starts_at!, s.ends_at!)}
+          action={bookingBadge(s)}>
+          {s.location ? (
+            <Row gap={6}>
+              <Ionicons name="location" size={15} color={Brand.volt} />
+              <Text style={styles.heroMeta}>{s.location}</Text>
+            </Row>
+          ) : null}
+          <Row wrap gap={6} style={{ marginTop: Spacing.one }}>
+            <Badge label={`${playing.length}/${capacity} players`} tone={spotsLeft === 0 ? 'danger' : 'accent'} />
+            {prepay ? <Badge label="Pay to confirm" tone="accent" /> : null}
+            {skills ? <Badge label={`Level ${skills}`} tone="accent" /> : null}
+          </Row>
+        </Hero>
+      }>
+      <Stack.Screen options={{ title: '' }} />
 
       <View style={{ gap: Spacing.two }}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="title">{s.title}</Txt>
-            <Txt
-              tone="primary"
-              variant="bodyBold"
-              onPress={() => router.push({ pathname: '/group/[id]', params: { id: s.group_id! } })}>
-              {s.group_name}
-            </Txt>
-          </View>
-          {bookingBadge(s)}
+        <Row gap={Spacing.two}>
+          <StatTile icon="people" value={`${playing.length}/${capacity}`} label="Players" />
+          <StatTile icon="grid" value={String(s.courts ?? 1)} label={s.courts === 1 ? 'Court' : 'Courts'} />
+          <StatTile icon="cash" value={fee > 0 ? `Rs ${fee}` : 'Free'} label="Drop-in" />
         </Row>
-        <IconText icon="calendar-outline" tone="text">
-          {formatSlot(s.starts_at!, s.ends_at!)}
-        </IconText>
-        {s.location ? (
-          <IconText icon="location-outline" tone="text">
-            {s.location}
-          </IconText>
-        ) : null}
-        <Row wrap gap={6}>
-          <Badge label={`${playing.length}/${capacity} players`} tone={spotsLeft === 0 ? 'danger' : 'neutral'} />
-          <Badge label={`${s.courts} court${s.courts === 1 ? '' : 's'}`} />
-          <Badge label={formatNpr(fee)} />
-          {prepay ? <Badge label="Pay to confirm" tone="accent" /> : null}
-          {skills ? <Badge label={`Level ${skills}`} /> : null}
-          <Badge label={`Cancel ${s.cancel_cutoff_hours}h before`} />
+        <CapacityBar value={playing.length} max={capacity} height={8} />
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Txt variant="small" tone="textSecondary">
+            {spotsLeft > 0 ? `${spotsLeft} spot${spotsLeft === 1 ? '' : 's'} left` : `Full · ${waitlist.length} on waitlist`}
+          </Txt>
+          <Txt variant="small" tone="textSecondary">
+            Cancel {s.cancel_cutoff_hours}h before
+          </Txt>
         </Row>
+        <Txt
+          tone="tint"
+          variant="bodyBold"
+          onPress={() => router.push({ pathname: '/group/[id]', params: { id: s.group_id! } })}>
+          View group →
+        </Txt>
         {s.my_status === 'waitlisted' && myWaitPos > 0 ? (
-          <Card style={{ borderWidth: 0 }}>
-            <Txt variant="bodyBold">You&apos;re #{myWaitPos} on the waitlist</Txt>
+          <Card accent>
+            <Txt variant="h2">You&apos;re #{myWaitPos} on the waitlist</Txt>
             <Txt variant="small" tone="textSecondary">
               {prepay
                 ? 'If a spot opens, it’s held for you and you’ll have a few minutes to pay.'
@@ -275,7 +294,14 @@ export default function SessionScreen() {
             </Txt>
           </Card>
         ) : null}
-        {s.notes ? <Txt>{s.notes}</Txt> : null}
+        {s.notes ? (
+          <Card>
+            <Txt variant="label" tone="textSecondary">
+              Notes from the organizer
+            </Txt>
+            <Txt>{s.notes}</Txt>
+          </Card>
+        ) : null}
       </View>
 
       {actionError ? <ErrorBanner message={actionError} /> : null}
@@ -512,3 +538,7 @@ function PlayerRow({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  heroMeta: { fontFamily: FontFamily.bodySemi, fontSize: 14, color: 'rgba(255,255,255,0.88)', flexShrink: 1 },
+});

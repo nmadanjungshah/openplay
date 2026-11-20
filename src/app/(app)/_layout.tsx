@@ -1,8 +1,18 @@
 import { Stack } from 'expo-router';
 
+import { Brand, FontFamily } from '@/constants/theme';
+
 export default function AppLayout() {
   return (
-    <Stack screenOptions={{ headerBackButtonDisplayMode: 'minimal', headerShadowVisible: false }}>
+    <Stack
+      screenOptions={{
+        headerBackButtonDisplayMode: 'minimal',
+        headerShadowVisible: false,
+        // Navy header that runs straight into each screen's <Hero>.
+        headerStyle: { backgroundColor: Brand.ink },
+        headerTintColor: '#FFFFFF',
+        headerTitleStyle: { fontFamily: FontFamily.displayBold, fontSize: 20 },
+      }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Home' }} />
       <Stack.Screen name="session/[id]" options={{ title: 'Session' }} />
       <Stack.Screen name="group/new" options={{ title: 'New group', presentation: 'modal' }} />

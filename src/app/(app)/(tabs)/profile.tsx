@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Avatar, Button, Card, Chip, ErrorBanner, Field, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, Chip, ErrorBanner, Field, Hero, HeroStat, Row, Screen, Txt } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
 import { SKILL_LEVELS } from '@/lib/format';
@@ -56,19 +56,15 @@ function ProfileForm({ profile }: { profile: Profile | null }) {
   }
 
   return (
-    <Screen>
-      <Txt variant="title">Profile</Txt>
-
-      <Row gap={Spacing.three}>
-        <Avatar name={name || session?.user.email || '?'} size={56} />
-        <View style={{ flex: 1 }}>
-          <Txt variant="h2">{name || 'New player'}</Txt>
-          <Txt variant="small" tone="textSecondary">
-            {session?.user.email}
-          </Txt>
-        </View>
-      </Row>
-
+    <Screen
+      hero={
+        <Hero eyebrow="Player card" title={name || 'New player'} subtitle={session?.user.email}>
+          <Row wrap gap={Spacing.two} style={{ marginTop: Spacing.two }}>
+            <HeroStat value={skill != null ? skill.toFixed(1) : '—'} label="Skill level" accent />
+            <HeroStat value={profile?.dupr_id || '—'} label="DUPR ID" />
+          </Row>
+        </Hero>
+      }>
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card>
