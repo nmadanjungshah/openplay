@@ -1,5 +1,7 @@
 # OpenPlay — pickleball open-play booking
 
+**Live:** https://openplay-nmadanshahgmailcoms-projects.vercel.app
+
 One Expo codebase for **iOS, Android and web**, backed by **Supabase** (Postgres, Auth, Realtime) and deployed to **Vercel** (web).
 
 ## What works today (M0 + M1)
