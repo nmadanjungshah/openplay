@@ -4,6 +4,8 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/ui": "~58.0.29",
+    "@expo/vector-icons": "^15.0.2",
+    "@supabase/supabase-js": "^2.119.2",
     "expo": "~58.0.26",
     "expo-constants": "~58.0.16",
     "expo-device": "~58.0.5",
@@ -13,6 +15,7 @@
     "expo-linking": "~58.0.17",
     "expo-router": "~58.0.32",
     "expo-splash-screen": "~58.0.14",
+    "expo-sqlite": "~58.0.18",
     "expo-status-bar": "~58.0.5",
     "expo-symbols": "~58.0.5",
     "expo-system-ui": "~58.0.7",
@@ -29,15 +32,25 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "build:web": "expo export -p web",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local > src/lib/database.types.ts && eslint --fix src/lib/database.types.ts",
+    "test:db": "docker exec -i supabase_db_openplay psql -U postgres -v ON_ERROR_STOP=1 -q < supabase/tests/booking_flow.sql"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  }
 }
