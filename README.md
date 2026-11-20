@@ -1,10 +1,10 @@
 # OpenPlay — pickleball open-play booking
 
-**Live:** https://openplay-nmadanshahgmailcoms-projects.vercel.app
+**Live:** https://openplay-gray.vercel.app
 
 One Expo codebase for **iOS, Android and web**, backed by **Supabase** (Postgres, Auth, Realtime) and deployed to **Vercel** (web).
 
-## What works today (M0 + M1)
+## What works today (M0–M2)
 
 - Email sign-in with a 6-digit code (no passwords, no deep links needed)
 - Player profile: name, self-rated skill level (2.0–5.5), DUPR ID
@@ -14,6 +14,7 @@ One Expo codebase for **iOS, Android and web**, backed by **Supabase** (Postgres
 - Live updates: seat counts and the waitlist refresh on everyone's screen without reloading
 - Late-cancel tracking (inside the cutoff window), stored for later penalty or credit rules
 - Add to Google Calendar, plus `.ics` download on web
+- Payments (NPR): per group, either pay at the court or pay to confirm a spot. Players pay the organizer's eSewa/Khalti QR and submit the transaction ID (and an optional screenshot); the organizer confirms or rejects. Unpaid holds expire automatically, and organizers can record cash and undo mistakes
 
 Booking rules live in the database (`supabase/migrations`), not the app, so two people can't both get the last spot.
 
@@ -37,7 +38,9 @@ Sign-in emails are delivered to the local Mailpit inbox at http://127.0.0.1:5532
 | Script | What it does |
 |---|---|
 | `npm run db:reset` | Rebuild the local DB from migrations |
-| `npm run test:db` | Booking, waitlist and access-rule tests (rolled back, safe to rerun) |
+| `npm test` | Everything: typecheck, lint, SQL tests and the browser suite |
+| `npm run test:db` | Booking, waitlist, payment and access-rule tests (rolled back, safe to rerun) |
+| `npm run test:e2e` | Builds the web app and runs the Playwright suite against local Supabase (`PW_CHROMIUM_PATH` reuses an installed Chromium) |
 | `npm run db:types` | Regenerate `src/lib/database.types.ts` after schema changes |
 | `npm run typecheck` / `npm run lint` | Static checks |
 | `npm run build:web` | Production web build into `dist/` |
