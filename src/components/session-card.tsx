@@ -9,13 +9,15 @@ export function bookingBadge(s: Pick<SessionOverview, 'my_status' | 'status'>) {
   if (s.status === 'cancelled') return <Badge label="Cancelled" tone="danger" />;
   if (s.my_status === 'confirmed') return <Badge label="You're in" tone="success" />;
   if (s.my_status === 'waitlisted') return <Badge label="Waitlisted" tone="warning" />;
+  if (s.my_status === 'pending_payment') return <Badge label="Pay to confirm" tone="warning" />;
   return null;
 }
 
 export function SessionCard({ session: s, showGroup = true }: { session: SessionOverview; showGroup?: boolean }) {
   const capacity = s.capacity ?? 0;
-  const confirmed = s.confirmed_count ?? 0;
-  const spotsLeft = Math.max(0, capacity - confirmed);
+  // Spots held for payment count as taken.
+  const taken = (s.confirmed_count ?? 0) + (s.pending_count ?? 0);
+  const spotsLeft = Math.max(0, capacity - taken);
   const skills = skillRange(s.skill_min, s.skill_max);
 
   return (
@@ -43,6 +45,7 @@ export function SessionCard({ session: s, showGroup = true }: { session: Session
         )}
         {skills ? <Badge label={`Level ${skills}`} /> : null}
         <Badge label={formatNpr(s.fee_npr ?? 0)} />
+        {(s.fee_npr ?? 0) > 0 && s.payment_mode === 'pay_to_confirm' ? <Badge label="Pay to confirm" tone="accent" /> : null}
       </Row>
     </Card>
   );

@@ -2,6 +2,8 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 
+import { PaymentCard, type PayInfo } from '@/components/payment-card';
+import { PrivateImage } from '@/components/private-image';
 import { bookingBadge } from '@/components/session-card';
 import {
   Avatar,
@@ -10,6 +12,7 @@ import {
   Card,
   EmptyState,
   ErrorBanner,
+  Field,
   IconText,
   Loading,
   Row,
@@ -26,7 +29,16 @@ import { downloadIcs, openGoogleCalendar, type CalendarEvent } from '@/lib/calen
 import { formatNpr, formatSlot, skillRange } from '@/lib/format';
 import { confirm, notify } from '@/lib/share';
 import { errorMessage, supabase } from '@/lib/supabase';
-import type { BookingStatus, Profile, SessionOverview } from '@/lib/types';
+import {
+  METHOD_LABEL,
+  type BookingStatus,
+  type Payment,
+  type PaymentMethod,
+  type Profile,
+  type SessionOverview,
+} from '@/lib/types';
+
+type PlayerPayment = Pick<Payment, 'id' | 'status' | 'method' | 'reference' | 'proof_path' | 'note' | 'amount_npr'>;
 
 type Player = {
   id: string;
@@ -34,8 +46,14 @@ type Player = {
   status: BookingStatus;
   queued_at: string;
   late_cancel: boolean;
+  hold_expires_at: string | null;
   profiles: Pick<Profile, 'full_name' | 'skill_level'> | null;
+  /** Only visible to the player themselves and to organizers (RLS). */
+  payments: PlayerPayment | null;
 };
+
+const PLAYER_COLUMNS =
+  'id, user_id, status, queued_at, late_cancel, hold_expires_at, profiles(full_name, skill_level), payments(id, status, method, reference, proof_path, note, amount_npr)';
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -48,32 +66,31 @@ export default function SessionScreen() {
   const q = useQuery(async () => {
     const s = unwrap(await supabase.from('session_overview').select('*').eq('id', id).maybeSingle()) as SessionOverview | null;
     if (!s) return null;
-    const [players, membership] = await Promise.all([
-      supabase
-        .from('bookings')
-        .select('id, user_id, status, queued_at, late_cancel, profiles(full_name, skill_level)')
-        .eq('session_id', id)
-        .neq('status', 'cancelled')
-        .order('queued_at'),
+    const [players, membership, group] = await Promise.all([
+      supabase.from('bookings').select(PLAYER_COLUMNS).eq('session_id', id).neq('status', 'cancelled').order('queued_at'),
       supabase.from('group_members').select('role').eq('group_id', s.group_id!).eq('user_id', uid).maybeSingle(),
+      supabase
+        .from('groups')
+        .select('id, payment_mode, esewa_id, khalti_id, esewa_qr_path, khalti_qr_path, payment_note')
+        .eq('id', s.group_id!)
+        .single(),
     ]);
     return {
       s,
-      players: unwrap(players) as Player[],
+      players: unwrap(players) as unknown as Player[],
       isOrganizer: (unwrap(membership) as { role: string } | null)?.role === 'organizer',
+      group: unwrap(group) as PayInfo,
     };
   }, `session-${id}`);
 
-  // Live updates: seats and waitlist move as other players book or cancel.
+  // Live updates: seats, waitlist and payment reviews move without reloading.
   useEffect(() => {
+    const refresh = () => q.refetch(true);
     const channel = supabase
       .channel(`session-${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `session_id=eq.${id}` }, () =>
-        q.refetch(true),
-      )
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${id}` }, () =>
-        q.refetch(true),
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `session_id=eq.${id}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `session_id=eq.${id}` }, refresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${id}` }, refresh)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -97,17 +114,22 @@ export default function SessionScreen() {
     );
   }
 
-  const { s, players, isOrganizer } = q.data;
-  const confirmed = players.filter((p) => p.status === 'confirmed');
+  const { s, players, isOrganizer, group } = q.data;
+  const fee = s.fee_npr ?? 0;
+  const playing = players.filter((p) => p.status === 'confirmed' || p.status === 'pending_payment');
   const waitlist = players.filter((p) => p.status === 'waitlisted');
+  const me = players.find((p) => p.user_id === uid);
   const myWaitPos = waitlist.findIndex((p) => p.user_id === uid) + 1;
   const capacity = s.capacity ?? 0;
-  const spotsLeft = Math.max(0, capacity - confirmed.length);
+  const spotsLeft = Math.max(0, capacity - playing.length);
   const started = new Date(s.starts_at!).getTime() <= now;
   const cancelled = s.status === 'cancelled';
   const cutoffAt = new Date(s.starts_at!).getTime() - (s.cancel_cutoff_hours ?? 0) * 3600_000;
   const insideCutoff = now > cutoffAt;
   const skills = skillRange(s.skill_min, s.skill_max);
+  const prepay = fee > 0 && s.payment_mode === 'pay_to_confirm';
+  const toVerify = isOrganizer ? players.filter((p) => p.payments?.status === 'claimed') : [];
+  const paidCount = players.filter((p) => p.payments?.status === 'confirmed' && p.status !== 'waitlisted').length;
 
   const event: CalendarEvent = {
     id: s.id!,
@@ -139,12 +161,17 @@ export default function SessionScreen() {
 
   async function cancelMine() {
     const late = s.my_status === 'confirmed' && insideCutoff;
+    const paid = me?.payments?.status === 'confirmed';
     const message = late
       ? `It's within ${s.cancel_cutoff_hours}h of start, so this counts as a late cancellation.`
       : s.my_status === 'waitlisted'
         ? 'You’ll lose your place on the waitlist.'
-        : 'Your spot goes to the next person on the waitlist.';
-    if (!(await confirm(s.my_status === 'waitlisted' ? 'Leave waitlist?' : 'Cancel booking?', message, 'Yes, cancel'))) return;
+        : s.my_status === 'pending_payment'
+          ? 'Your held spot goes to the next person.'
+          : 'Your spot goes to the next person on the waitlist.';
+    const refundNote = paid ? '\n\nYou already paid: ask the organizer about a refund or credit.' : '';
+    const title = s.my_status === 'waitlisted' ? 'Leave waitlist?' : s.my_status === 'pending_payment' ? 'Release spot?' : 'Cancel booking?';
+    if (!(await confirm(title, message + refundNote, 'Yes, cancel'))) return;
     await run(() => supabase.rpc('cancel_booking', { session_id: s.id! }));
   }
 
@@ -163,7 +190,7 @@ export default function SessionScreen() {
   }
 
   async function deleteSession() {
-    if (!(await confirm('Delete session?', 'This removes the session and all its bookings.', 'Delete'))) return;
+    if (!(await confirm('Delete session?', 'This removes the session, its bookings and payment records.', 'Delete'))) return;
     setBusy(true);
     const { error } = await supabase.from('sessions').delete().eq('id', s.id!);
     setBusy(false);
@@ -176,10 +203,12 @@ export default function SessionScreen() {
     primary = <Txt tone="danger" style={{ textAlign: 'center' }}>This session was cancelled by the organizer.</Txt>;
   } else if (started) {
     primary = <Txt tone="textSecondary" style={{ textAlign: 'center' }}>This session has started.</Txt>;
-  } else if (s.my_status === 'confirmed' || s.my_status === 'waitlisted') {
+  } else if (s.my_status === 'confirmed' || s.my_status === 'waitlisted' || s.my_status === 'pending_payment') {
     primary = (
       <Button
-        title={s.my_status === 'confirmed' ? 'Cancel my spot' : 'Leave waitlist'}
+        title={
+          s.my_status === 'confirmed' ? 'Cancel my spot' : s.my_status === 'pending_payment' ? 'Release held spot' : 'Leave waitlist'
+        }
         variant="danger"
         onPress={cancelMine}
         loading={busy}
@@ -188,7 +217,13 @@ export default function SessionScreen() {
   } else {
     primary = (
       <Button
-        title={spotsLeft > 0 ? `Book my spot · ${formatNpr(s.fee_npr ?? 0)}` : `Join waitlist (${waitlist.length} waiting)`}
+        title={
+          spotsLeft > 0
+            ? prepay
+              ? `Hold my spot · pay ${formatNpr(fee)}`
+              : `Book my spot · ${formatNpr(fee)}`
+            : `Join waitlist (${waitlist.length} waiting)`
+        }
         icon={spotsLeft > 0 ? 'checkmark-circle-outline' : 'time-outline'}
         onPress={book}
         loading={busy}
@@ -222,9 +257,10 @@ export default function SessionScreen() {
           </IconText>
         ) : null}
         <Row wrap gap={6}>
-          <Badge label={`${confirmed.length}/${capacity} players`} tone={spotsLeft === 0 ? 'danger' : 'neutral'} />
+          <Badge label={`${playing.length}/${capacity} players`} tone={spotsLeft === 0 ? 'danger' : 'neutral'} />
           <Badge label={`${s.courts} court${s.courts === 1 ? '' : 's'}`} />
-          <Badge label={formatNpr(s.fee_npr ?? 0)} />
+          <Badge label={formatNpr(fee)} />
+          {prepay ? <Badge label="Pay to confirm" tone="accent" /> : null}
           {skills ? <Badge label={`Level ${skills}`} /> : null}
           <Badge label={`Cancel ${s.cancel_cutoff_hours}h before`} />
         </Row>
@@ -232,7 +268,9 @@ export default function SessionScreen() {
           <Card style={{ borderWidth: 0 }}>
             <Txt variant="bodyBold">You&apos;re #{myWaitPos} on the waitlist</Txt>
             <Txt variant="small" tone="textSecondary">
-              You&apos;ll be moved in automatically if a spot opens.
+              {prepay
+                ? 'If a spot opens, it’s held for you and you’ll have a few minutes to pay.'
+                : 'You’ll be moved in automatically if a spot opens.'}
             </Txt>
           </Card>
         ) : null}
@@ -242,6 +280,30 @@ export default function SessionScreen() {
       {actionError ? <ErrorBanner message={actionError} /> : null}
       {q.error ? <ErrorBanner message={q.error} onRetry={() => q.refetch()} /> : null}
 
+      {me && !cancelled ? (
+        <PaymentCard
+          sessionId={s.id!}
+          fee={fee}
+          status={me.status}
+          holdExpiresAt={me.hold_expires_at}
+          payment={me.payments}
+          group={group}
+          userId={uid}
+          onChanged={() => q.refetch(true)}
+        />
+      ) : null}
+
+      {toVerify.length ? (
+        <Card style={{ borderWidth: 0 }}>
+          <Txt variant="bodyBold">
+            {toVerify.length} payment{toVerify.length === 1 ? '' : 's'} to verify
+          </Txt>
+          <Txt variant="small" tone="textSecondary">
+            Check your eSewa/Khalti statement for each transaction ID below, then confirm or reject.
+          </Txt>
+        </Card>
+      ) : null}
+
       <Row wrap>
         <Button title="Google Calendar" icon="calendar-outline" variant="secondary" small onPress={() => openGoogleCalendar(event)} />
         {Platform.OS === 'web' ? (
@@ -249,11 +311,19 @@ export default function SessionScreen() {
         ) : null}
       </Row>
 
-      <Section title={`Playing · ${confirmed.length}`}>
-        {confirmed.length ? (
+      <Section title={`Playing · ${playing.length}${isOrganizer && fee > 0 ? ` · ${paidCount} paid` : ''}`}>
+        {playing.length ? (
           <Card>
-            {confirmed.map((p) => (
-              <PlayerRow key={p.id} player={p} me={p.user_id === uid} />
+            {playing.map((p) => (
+              <PlayerRow
+                key={p.id}
+                player={p}
+                me={p.user_id === uid}
+                isOrganizer={isOrganizer}
+                fee={fee}
+                sessionId={s.id!}
+                onChanged={() => q.refetch(true)}
+              />
             ))}
           </Card>
         ) : (
@@ -277,7 +347,7 @@ export default function SessionScreen() {
             <Stepper
               label="Max players"
               value={capacity}
-              min={Math.max(1, confirmed.length)}
+              min={Math.max(1, playing.length)}
               max={200}
               onChange={setCapacity}
             />
@@ -301,25 +371,143 @@ export default function SessionScreen() {
   );
 }
 
-function PlayerRow({ player, me, position }: { player: Player; me: boolean; position?: number }) {
+function paymentBadge(p: Player, fee: number) {
+  if (fee <= 0) return null;
+  if (p.status === 'pending_payment' && p.payments?.status !== 'claimed') return <Badge label="Holding" tone="warning" />;
+  switch (p.payments?.status) {
+    case 'confirmed':
+      return <Badge label={`Paid · ${METHOD_LABEL[p.payments.method]}`} tone="success" />;
+    case 'claimed':
+      return <Badge label="To verify" tone="warning" />;
+    case 'rejected':
+      return <Badge label="Rejected" tone="danger" />;
+    default:
+      return <Badge label="Unpaid" />;
+  }
+}
+
+function PlayerRow({
+  player,
+  me,
+  position,
+  isOrganizer,
+  fee = 0,
+  sessionId,
+  onChanged,
+}: {
+  player: Player;
+  me: boolean;
+  position?: number;
+  isOrganizer?: boolean;
+  fee?: number;
+  sessionId?: string;
+  onChanged?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const name = player.profiles?.full_name || 'Unnamed player';
+  const pay = player.payments;
+  const canManage = isOrganizer && fee > 0 && !position;
+  const showBadge = fee > 0 && !position && (isOrganizer || me);
+
+  async function act(fn: () => PromiseLike<{ error: unknown }>) {
+    setBusy(true);
+    setError(null);
+    const { error } = await fn();
+    setBusy(false);
+    if (error) setError(errorMessage(error));
+    else {
+      setOpen(false);
+      setNote('');
+      onChanged?.();
+    }
+  }
+
+  const review = (approve: boolean) =>
+    act(() => supabase.rpc('review_payment', { payment_id: pay!.id, approve, note: note.trim() }));
+  const record = (method: PaymentMethod) =>
+    act(() => supabase.rpc('record_payment', { session_id: sessionId!, user_id: player.user_id, method, note: note.trim() }));
+  const voidPayment = async () => {
+    if (!(await confirm('Undo payment?', `Mark ${name} as unpaid again?`, 'Undo'))) return;
+    await act(() => supabase.rpc('void_payment', { payment_id: pay!.id }));
+  };
+
   return (
-    <Row style={{ paddingVertical: 4 }}>
-      {position ? (
-        <Txt variant="bodyBold" tone="textSecondary" style={{ width: 24, textAlign: 'center' }}>
-          {position}
-        </Txt>
+    <View style={{ paddingVertical: 4, gap: Spacing.two }}>
+      <Row>
+        {position ? (
+          <Txt variant="bodyBold" tone="textSecondary" style={{ width: 24, textAlign: 'center' }}>
+            {position}
+          </Txt>
+        ) : null}
+        <Avatar name={name} />
+        <View style={{ flex: 1 }}>
+          <Txt variant="bodyBold">
+            {name}
+            {me ? ' (you)' : ''}
+          </Txt>
+          <Txt variant="small" tone="textSecondary">
+            {player.profiles?.skill_level != null ? `Level ${player.profiles.skill_level.toFixed(1)}` : 'Level not set'}
+          </Txt>
+        </View>
+        {showBadge ? paymentBadge(player, fee) : null}
+        {canManage ? (
+          <Button
+            title={open ? 'Close' : pay?.status === 'claimed' ? 'Review' : 'Payment'}
+            variant={pay?.status === 'claimed' ? 'primary' : 'ghost'}
+            small
+            onPress={() => setOpen(!open)}
+          />
+        ) : null}
+      </Row>
+
+      {canManage && open ? (
+        <Card style={{ borderWidth: 0 }}>
+          {pay?.status === 'claimed' ? (
+            <>
+              <Txt variant="bodyBold">
+                Says they paid {formatNpr(pay.amount_npr)} by {METHOD_LABEL[pay.method]}
+              </Txt>
+              {pay.reference ? (
+                <Txt selectable>
+                  Transaction ID: <Txt variant="bodyBold">{pay.reference}</Txt>
+                </Txt>
+              ) : null}
+              {pay.proof_path ? (
+                <PrivateImage bucket="payment-proofs" path={pay.proof_path} size={200} openOnPress label="Payment screenshot" />
+              ) : null}
+              <Field label="Note (shown to player if rejected)" value={note} onChangeText={setNote} maxLength={300} />
+              <Row wrap>
+                <Button title="Confirm paid" icon="checkmark" small onPress={() => review(true)} loading={busy} />
+                <Button title="Reject" variant="danger" small onPress={() => review(false)} disabled={busy} />
+              </Row>
+            </>
+          ) : pay?.status === 'confirmed' ? (
+            <>
+              <Txt>
+                Paid {formatNpr(pay.amount_npr)} by {METHOD_LABEL[pay.method]}
+                {pay.reference ? ` (ref ${pay.reference})` : ''}
+                {pay.note ? ` · ${pay.note}` : ''}
+              </Txt>
+              <Button title="Undo payment" variant="ghost" small onPress={voidPayment} loading={busy} />
+            </>
+          ) : (
+            <>
+              <Txt variant="small" tone="textSecondary">
+                Record a payment you&apos;ve received for {formatNpr(fee)}:
+              </Txt>
+              <Row wrap>
+                {(['cash', 'esewa', 'khalti'] as const).map((m) => (
+                  <Button key={m} title={`Paid · ${METHOD_LABEL[m]}`} variant="secondary" small onPress={() => record(m)} disabled={busy} />
+                ))}
+              </Row>
+            </>
+          )}
+          {error ? <ErrorBanner message={error} /> : null}
+        </Card>
       ) : null}
-      <Avatar name={name} />
-      <View style={{ flex: 1 }}>
-        <Txt variant="bodyBold">
-          {name}
-          {me ? ' (you)' : ''}
-        </Txt>
-        <Txt variant="small" tone="textSecondary">
-          {player.profiles?.skill_level != null ? `Level ${player.profiles.skill_level.toFixed(1)}` : 'Level not set'}
-        </Txt>
-      </View>
-    </Row>
+    </View>
   );
 }

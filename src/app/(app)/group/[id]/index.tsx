@@ -128,6 +128,21 @@ export default function GroupScreen() {
         </Row>
       </Card>
 
+      {isOrganizer ? (
+        <Card onPress={() => router.push({ pathname: '/group/[id]/payments', params: { id } })}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt variant="bodyBold">Payments</Txt>
+              <Txt variant="small" tone="textSecondary">
+                {group.payment_mode === 'pay_to_confirm' ? 'Players pay to confirm their spot' : 'Players pay at the court'}
+                {group.esewa_qr_path || group.khalti_qr_path ? ' · QR added' : ' · No QR yet'}
+              </Txt>
+            </View>
+            <Badge label="Settings" />
+          </Row>
+        </Card>
+      ) : null}
+
       <Section
         title="Upcoming sessions"
         action={

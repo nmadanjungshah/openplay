@@ -38,6 +38,7 @@ export type Database = {
         Row: {
           cancelled_at: string | null
           created_at: string
+          hold_expires_at: string | null
           id: string
           late_cancel: boolean
           queued_at: string
@@ -48,6 +49,7 @@ export type Database = {
         Insert: {
           cancelled_at?: string | null
           created_at?: string
+          hold_expires_at?: string | null
           id?: string
           late_cancel?: boolean
           queued_at?: string
@@ -58,6 +60,7 @@ export type Database = {
         Update: {
           cancelled_at?: string | null
           created_at?: string
+          hold_expires_at?: string | null
           id?: string
           late_cancel?: boolean
           queued_at?: string
@@ -130,36 +133,157 @@ export type Database = {
           city: string
           created_at: string
           description: string
+          esewa_id: string
+          esewa_qr_path: string | null
+          hold_minutes: number
           id: string
           invite_code: string
           is_public: boolean
+          khalti_id: string
+          khalti_qr_path: string | null
           name: string
           owner_id: string
+          payment_mode: Database["public"]["Enums"]["payment_mode"]
+          payment_note: string
         }
         Insert: {
           city?: string
           created_at?: string
           description?: string
+          esewa_id?: string
+          esewa_qr_path?: string | null
+          hold_minutes?: number
           id?: string
           invite_code?: string
           is_public?: boolean
+          khalti_id?: string
+          khalti_qr_path?: string | null
           name: string
           owner_id?: string
+          payment_mode?: Database["public"]["Enums"]["payment_mode"]
+          payment_note?: string
         }
         Update: {
           city?: string
           created_at?: string
           description?: string
+          esewa_id?: string
+          esewa_qr_path?: string | null
+          hold_minutes?: number
           id?: string
           invite_code?: string
           is_public?: boolean
+          khalti_id?: string
+          khalti_qr_path?: string | null
           name?: string
           owner_id?: string
+          payment_mode?: Database["public"]["Enums"]["payment_mode"]
+          payment_note?: string
         }
         Relationships: [
           {
             foreignKeyName: "groups_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_npr: number
+          booking_id: string
+          claimed_at: string | null
+          created_at: string
+          group_id: string
+          id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          note: string
+          proof_path: string | null
+          reference: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          session_id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_npr: number
+          booking_id: string
+          claimed_at?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          method: Database["public"]["Enums"]["payment_method"]
+          note?: string
+          proof_path?: string | null
+          reference?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          session_id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_npr?: number
+          booking_id?: string
+          claimed_at?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          note?: string
+          proof_path?: string | null
+          reference?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          session_id?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "session_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -286,6 +410,8 @@ export type Database = {
           location: string | null
           my_status: Database["public"]["Enums"]["booking_status"] | null
           notes: string | null
+          payment_mode: Database["public"]["Enums"]["payment_mode"] | null
+          pending_count: number | null
           recurrence_id: string | null
           skill_max: number | null
           skill_min: number | null
@@ -318,12 +444,42 @@ export type Database = {
         Returns: Database["public"]["Enums"]["booking_status"]
       }
       cancel_booking: { Args: { session_id: string }; Returns: undefined }
+      claim_payment: {
+        Args: {
+          method: Database["public"]["Enums"]["payment_method"]
+          proof_path?: string
+          reference?: string
+          session_id: string
+        }
+        Returns: Database["public"]["Enums"]["payment_status"]
+      }
       join_group: { Args: { code: string }; Returns: string }
       join_public_group: { Args: { group_id: string }; Returns: undefined }
+      record_payment: {
+        Args: {
+          method: Database["public"]["Enums"]["payment_method"]
+          note?: string
+          session_id: string
+          user_id: string
+        }
+        Returns: undefined
+      }
+      review_payment: {
+        Args: { approve: boolean; note?: string; payment_id: string }
+        Returns: Database["public"]["Enums"]["payment_status"]
+      }
+      void_payment: { Args: { payment_id: string }; Returns: undefined }
     }
     Enums: {
-      booking_status: "confirmed" | "waitlisted" | "cancelled"
+      booking_status:
+        | "confirmed"
+        | "waitlisted"
+        | "cancelled"
+        | "pending_payment"
       member_role: "organizer" | "member"
+      payment_method: "cash" | "esewa" | "khalti" | "other"
+      payment_mode: "pay_at_court" | "pay_to_confirm"
+      payment_status: "claimed" | "confirmed" | "rejected"
       session_status: "scheduled" | "cancelled"
     }
     CompositeTypes: {
@@ -455,8 +611,16 @@ export const Constants = {
   },
   public: {
     Enums: {
-      booking_status: ["confirmed", "waitlisted", "cancelled"],
+      booking_status: [
+        "confirmed",
+        "waitlisted",
+        "cancelled",
+        "pending_payment",
+      ],
       member_role: ["organizer", "member"],
+      payment_method: ["cash", "esewa", "khalti", "other"],
+      payment_mode: ["pay_at_court", "pay_to_confirm"],
+      payment_status: ["claimed", "confirmed", "rejected"],
       session_status: ["scheduled", "cancelled"],
     },
   },
